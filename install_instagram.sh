@@ -27,12 +27,33 @@ if [ "$DEVICES" -eq 0 ]; then
     echo "Please connect a device with USB debugging enabled."
     exit 1
 elif [ "$DEVICES" -gt 1 ]; then
-    echo "WARNING: Multiple devices connected. Using first available device."
+    echo "Multiple devices connected:"
+    echo ""
+
+    # Show numbered list of devices
+    readarray -t DEVICE_LIST < <(adb devices | grep -E "device$" | awk '{print $1}')
+    for i in "${!DEVICE_LIST[@]}"; do
+        echo "  $((i+1)). ${DEVICE_LIST[$i]}"
+    done
+
+    echo ""
+    read -p "Select device (1-${#DEVICE_LIST[@]}): " SELECTION
+
+    # Validate selection
+    if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt "${#DEVICE_LIST[@]}" ]; then
+        echo "ERROR: Invalid selection."
+        exit 1
+    fi
+
+    DEVICE_ID="${DEVICE_LIST[$((SELECTION-1))]}"
+else
+    DEVICE_ID=$(adb devices | grep -E "device$" | head -1 | awk '{print $1}')
 fi
 
-# Show connected device
-DEVICE_ID=$(adb devices | grep -E "device$" | head -1 | awk '{print $1}')
-echo "Connected device: $DEVICE_ID"
+echo "Selected device: $DEVICE_ID"
+
+# Use -s flag for all subsequent adb commands to target specific device
+ADB="adb -s $DEVICE_ID"
 
 # Check if APK files exist
 if [ ! -f "$BASE_APK" ]; then
@@ -52,7 +73,7 @@ echo "  Base APK: $BASE_APK ($(du -h "$BASE_APK" | cut -f1))"
 echo "  Split APK: $SPLIT_APK ($(du -h "$SPLIT_APK" | cut -f1))"
 
 # Check if Instagram is already installed
-if adb shell pm list packages | grep -q "com.instagram.android"; then
+if $ADB shell pm list packages | grep -q "com.instagram.android"; then
     echo "WARNING: Instagram is already installed on this device."
     read -p "Do you want to reinstall? (y/N): " -n 1 -r
     echo
@@ -61,14 +82,14 @@ if adb shell pm list packages | grep -q "com.instagram.android"; then
         exit 0
     fi
     echo "Uninstalling existing Instagram..."
-    adb uninstall com.instagram.android || echo "Uninstall failed, continuing..."
+    $ADB uninstall com.instagram.android || echo "Uninstall failed, continuing..."
 fi
 
 # Install Instagram APKs
 echo "Installing Instagram..."
 cd "$SCRIPT_DIR"
 
-if adb install-multiple base.apk split_config.xxxhdpi.apk; then
+if $ADB install-multiple base.apk split_config.xxxhdpi.apk; then
     echo "✅ Instagram successfully installed on device $DEVICE_ID"
     echo "The app should now be available in the device's app drawer."
 
@@ -77,7 +98,7 @@ if adb install-multiple base.apk split_config.xxxhdpi.apk; then
         echo ""
         echo "Pushing Instagram settings to device..."
 
-        if adb push "$SETTINGS_FILE" /sdcard/Download/instagram-392.settings; then
+        if $ADB push "$SETTINGS_FILE" /sdcard/Download/instagram-392.settings; then
             echo "✅ Settings file uploaded to Downloads folder"
         else
             echo "⚠️  Failed to push settings file"
