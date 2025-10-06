@@ -8,6 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_APK="$SCRIPT_DIR/base.apk"
 SPLIT_APK="$SCRIPT_DIR/split_config.xxxhdpi.apk"
+SETTINGS_FILE="$SCRIPT_DIR/instagram-392.settings"
 
 echo "=== Instagram APK Installer ==="
 
@@ -70,6 +71,20 @@ cd "$SCRIPT_DIR"
 if adb install-multiple base.apk split_config.xxxhdpi.apk; then
     echo "✅ Instagram successfully installed on device $DEVICE_ID"
     echo "The app should now be available in the device's app drawer."
+
+    # Push settings file if it exists
+    if [ -f "$SETTINGS_FILE" ]; then
+        echo ""
+        echo "Pushing Instagram settings to device..."
+
+        if adb push "$SETTINGS_FILE" /sdcard/Download/instagram-392.settings; then
+            echo "✅ Settings file uploaded to Downloads folder"
+        else
+            echo "⚠️  Failed to push settings file"
+        fi
+    else
+        echo "ℹ️  No settings file found at $SETTINGS_FILE"
+    fi
 else
     echo "❌ Installation failed."
     echo "Try the following troubleshooting steps:"
@@ -79,4 +94,5 @@ else
     exit 1
 fi
 
+echo ""
 echo "Installation complete!"
